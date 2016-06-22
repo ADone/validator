@@ -492,6 +492,27 @@ func TestStructLevelReturnValidationErrorsWithJSON(t *testing.T) {
 	Equal(t, fe.NameNamespace, "TestStructReturnValidationErrors.Inner1JSON.JSONString")
 }
 
+func TestRegisterStructValidation(t *testing.T) {
+	config := &Config{
+		TagName: "validate",
+	}
+
+	var firstExecuted, secondExecuted bool
+
+	v := New(config)
+	v.RegisterStructValidation(func(v *Validate, structLevel *StructLevel) { firstExecuted = true }, TestStruct{})
+	v.RegisterStructValidation(func(v *Validate, structLevel *StructLevel) { secondExecuted = true }, TestStruct{})
+
+	tst := &TestStruct{
+		String: "goog value",
+	}
+
+	errs := v.Struct(tst)
+	Equal(t, errs, nil)
+	Equal(t, firstExecuted, true)
+	Equal(t, secondExecuted, true)
+}
+
 func TestStructLevelValidations(t *testing.T) {
 
 	config := &Config{

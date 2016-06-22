@@ -141,7 +141,7 @@ type Validate struct {
 	tagName             string
 	fieldNameTag        string
 	validationFuncs     map[string]Func
-	structLevelFuncs    map[reflect.Type]StructLevelFunc
+	structLevelFuncs    map[reflect.Type]map[*StructLevelFunc]struct{}
 	customTypeFuncs     map[reflect.Type]CustomTypeFunc
 	aliasValidators     map[string]string
 	hasCustomFuncs      bool
@@ -254,11 +254,18 @@ func (v *Validate) RegisterStructValidation(fn StructLevelFunc, types ...interfa
 	v.initCheck()
 
 	if v.structLevelFuncs == nil {
-		v.structLevelFuncs = map[reflect.Type]StructLevelFunc{}
+		v.structLevelFuncs = map[reflect.Type]map[*StructLevelFunc]struct{}{}
 	}
 
 	for _, t := range types {
-		v.structLevelFuncs[reflect.TypeOf(t)] = fn
+		key := reflect.TypeOf(t)
+		set, ok := v.structLevelFuncs[key]
+		if ok {
+			set[&fn] = struct{}{}
+			continue
+		}
+
+		v.structLevelFuncs[key] = map[*StructLevelFunc]struct{}{&fn: struct{}{}}
 	}
 
 	v.hasStructLevelFuncs = true
@@ -564,8 +571,10 @@ func (v *Validate) tranverseStruct(topStruct reflect.Value, currentStruct reflec
 
 	// check if any struct level validations, after all field validations already checked.
 	if v.hasStructLevelFuncs {
-		if fn, ok := v.structLevelFuncs[current.Type()]; ok {
-			fn(v, &StructLevel{v: v, TopStruct: topStruct, CurrentStruct: current, errPrefix: errPrefix, nsPrefix: nsPrefix, errs: errs})
+		if fns, ok := v.structLevelFuncs[current.Type()]; ok {
+			for fn := range fns {
+				(*fn)(v, &StructLevel{v: v, TopStruct: topStruct, CurrentStruct: current, errPrefix: errPrefix, nsPrefix: nsPrefix, errs: errs})
+			}
 		}
 	}
 }
